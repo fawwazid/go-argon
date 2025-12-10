@@ -20,7 +20,7 @@ go get github.com/fawwazid/go-argon
 This uses **Argon2id** with:
 - Memory: 64 MB
 - Iterations: 1
-- Parallelism: 4 (or number of CPUs)
+- Parallelism: min(4, number of CPUs)
 - Salt: 16 bytes
 - Key: 32 bytes
 
