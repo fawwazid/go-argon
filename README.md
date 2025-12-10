@@ -3,7 +3,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/fawwazid/go-argon.svg)](https://pkg.go.dev/github.com/fawwazid/go-argon)
 [![Go Report Card](https://goreportcard.com/badge/github.com/fawwazid/go-argon)](https://goreportcard.com/report/github.com/fawwazid/go-argon)
 
-Go library for Argon2 password hashing, compliant with the latest **NIST 2024/2025** recommendations.
+Go library for Argon2 password hashing, based on **NIST SP 800-63B** guidelines for password hashing.
 
 This library provides a simple and secure wrapper around `golang.org/x/crypto/argon2`, enforcing secure defaults (Argon2id) and PHC string formatting.
 
