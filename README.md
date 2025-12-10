@@ -1,4 +1,4 @@
-# go-argon
+# Go - Argon
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/fawwazid/go-argon.svg)](https://pkg.go.dev/github.com/fawwazid/go-argon)
 [![Go Report Card](https://goreportcard.com/badge/github.com/fawwazid/go-argon)](https://goreportcard.com/report/github.com/fawwazid/go-argon)
