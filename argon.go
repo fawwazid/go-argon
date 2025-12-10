@@ -40,7 +40,11 @@ type Params struct {
 // Current defaults:
 // - Memory: 64 MB (64 * 1024)
 // - Iterations: 1
-// - Parallelism: 4 (or runtime.NumCPU() if less than 4, capped at 4 for consistency default)
+// - Parallelism: up to 4 (uses runtime.NumCPU() if less than 4, but always capped at 4)
+//   This cap is intended to avoid excessive resource usage on high-core-count systems
+//   for typical authentication scenarios, and to provide consistent default behavior.
+//   Note: On systems with more than 4 CPUs, this may result in underutilization of available
+//   CPU cores. If higher parallelism is desired, set the Parallelism field manually.
 // - SaltLength: 16 bytes
 // - KeyLength: 32 bytes
 func DefaultParams() *Params {
