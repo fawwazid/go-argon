@@ -45,9 +45,6 @@ type Params struct {
 // - KeyLength: 32 bytes
 func DefaultParams() *Params {
 	p := uint8(runtime.NumCPU())
-	if p < 1 {
-		p = 1
-	}
 	// Cap parallelism at 4 for defaults to avoid excessive resource usage on large machines for simple auth
 	if p > 4 {
 		p = 4
