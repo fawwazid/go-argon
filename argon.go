@@ -124,6 +124,10 @@ func decodeHash(encodedHash string) (p *Params, salt, hash []byte, err error) {
 		return nil, nil, nil, ErrInvalidHash
 	}
 
+	// Validate Argon2 parameters to prevent unsafe or nonsensical values
+	if p.Memory < 1 || p.Iterations < 1 || p.Parallelism < 1 {
+		return nil, nil, nil, ErrInvalidHash
+	}
 	salt, err = base64.RawStdEncoding.DecodeString(vals[4])
 	if err != nil {
 		return nil, nil, nil, err
