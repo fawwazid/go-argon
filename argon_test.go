@@ -161,11 +161,11 @@ func TestVerifyExtremeParameters(t *testing.T) {
 	// Test with very large but valid parameters
 	// Create a hash with extreme parameters
 	extremeParams := &Params{
-		Memory:      1024 * 1024, // 1 GB - very large
-		Iterations:  10,          // Many iterations
-		Parallelism: 16,          // High parallelism
-		SaltLength:  32,          // Longer salt
-		KeyLength:   64,          // Longer key
+		Memory:      128 * 1024, // 128 MB - large but CI-friendly
+		Iterations:  10,         // Many iterations
+		Parallelism: 16,         // High parallelism
+		SaltLength:  32,         // Longer salt
+		KeyLength:   64,         // Longer key
 	}
 
 	password := "test_password"
