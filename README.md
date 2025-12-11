@@ -5,7 +5,7 @@
 
 Go library for Argon2 password hashing, based on **NIST SP 800-63B** guidelines for password hashing.
 
-This library provides a simple and secure wrapper around `golang.org/x/crypto/argon2`, enforcing secure defaults (Argon2id) and PHC string formatting.
+This library provides a simple and secure wrapper around `golang.org/x/crypto/argon2`, supporting both **Argon2id** (default, recommended) and **Argon2i** modes with PHC string formatting.
 
 ## Installation
 
@@ -69,18 +69,41 @@ params := &argon.Params{
     Parallelism: 2,
     SaltLength:  16,
     KeyLength:   32,
+    Mode:        argon.ModeArgon2id, // or argon.ModeArgon2i
 }
 
 hash, err := argon.HashWithParams("password", params)
 ```
 
+### Choosing Between Argon2id and Argon2i
+
+- **Argon2id** (Default): Recommended by NIST. Hybrid mode that provides resistance to both GPU/ASIC attacks and side-channel attacks. Use this for general password hashing.
+- **Argon2i**: Optimized for maximum resistance to side-channel attacks. Use this in environments where timing attacks are a primary concern.
+
+```go
+// Using Argon2i explicitly
+params := &argon.Params{
+    Memory:      64 * 1024,
+    Iterations:  1,
+    Parallelism: 4,
+    SaltLength:  16,
+    KeyLength:   32,
+    Mode:        argon.ModeArgon2i,
+}
+
+hash, err := argon.HashWithParams("password", params)
+```
+
+> **Note**: Argon2d is not supported as it is vulnerable to side-channel attacks and not recommended for password hashing by NIST.
+
 ## Standards Compliance
 
-This library follows **NIST Special Publication 800-63B** guidelines (2024/2025) for Password Hashing:
+This library follows **NIST Special Publication 800-63B** guidelines for Password Hashing:
 
-- **Algorithm**: Uses **Argon2id**, which is memory-hard and resistant to GPU/ASIC attacks and side-channel attacks.
+- **Algorithm**: Supports **Argon2id** (default) and **Argon2i**. Argon2id is memory-hard and resistant to both GPU/ASIC attacks and side-channel attacks.
 - **Salt**: Automatically generates a 16-byte cryptographically secure random salt.
 - **Work Factor**: Defaults to 64 MB memory usage to ensure a significant cost for attackers, while maintaining acceptable performance for legitimate verification on modern servers.
+- **Mode Selection**: Defaults to Argon2id as recommended by NIST. Argon2i is available for scenarios requiring maximum side-channel resistance.
 - **Note on NIST**: NIST SP 800-63B recommends memory-hard functions like Argon2. While specific parameter naming conventions vary, the core requirement is resistance to offline cracking attacks, which this configuration satisfies.
 
 ## License
