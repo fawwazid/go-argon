@@ -58,6 +58,7 @@ type Params struct {
 //     CPU cores. If higher parallelism is desired, set the Parallelism field manually.
 //   - SaltLength: 16 bytes
 //   - KeyLength: 32 bytes
+//   - Mode: argon2id
 func DefaultParams() *Params {
 	p := uint8(runtime.NumCPU())
 	// Cap parallelism at 4 for defaults to avoid excessive resource usage on large machines for simple auth
