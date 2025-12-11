@@ -40,7 +40,6 @@ type Params struct {
 	// The length of the random salt. 16 bytes is recommended for password hashing.
 	SaltLength uint32
 	// The length of the generated key (or password hash). 32 bytes or more is recommended.
-	// The length of the generated key (or password hash). 32 bytes or more is recommended.
 	KeyLength uint32
 	// The mode of Argon2 to use (argon2id or argon2i).
 	Mode string
