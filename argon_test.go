@@ -49,6 +49,7 @@ func TestHashWithParams(t *testing.T) {
 		Parallelism: 2,
 		SaltLength:  16,
 		KeyLength:   32,
+		Mode:        ModeArgon2id,
 	}
 
 	hash, err := HashWithParams(password, params)
@@ -166,6 +167,7 @@ func TestVerifyExtremeParameters(t *testing.T) {
 		Parallelism: 16,         // High parallelism
 		SaltLength:  32,         // Longer salt
 		KeyLength:   64,         // Longer key
+		Mode:        ModeArgon2id,
 	}
 
 	password := "test_password"
@@ -184,6 +186,35 @@ func TestVerifyExtremeParameters(t *testing.T) {
 	}
 }
 
+func TestVerifyArgon2i(t *testing.T) {
+	password := "password"
+	params := &Params{
+		Memory:      32 * 1024,
+		Iterations:  2,
+		Parallelism: 2,
+		SaltLength:  16,
+		KeyLength:   32,
+		Mode:        ModeArgon2i,
+	}
+
+	hash, err := HashWithParams(password, params)
+	if err != nil {
+		t.Fatalf("HashWithParams (Argon2i) failed: %v", err)
+	}
+
+	if !strings.HasPrefix(hash, "$argon2i$") {
+		t.Errorf("Expected prefix $argon2i$, got %s", hash)
+	}
+
+	match, err := Verify(password, hash)
+	if err != nil {
+		t.Fatalf("Verify (Argon2i) failed: %v", err)
+	}
+	if !match {
+		t.Error("Verify (Argon2i) returned false for correct password")
+	}
+}
+
 func TestDefaultParamsValues(t *testing.T) {
 	p := DefaultParams()
 	if p.Memory != 64*1024 {
@@ -194,5 +225,49 @@ func TestDefaultParamsValues(t *testing.T) {
 	}
 	if p.KeyLength != 32 {
 		t.Errorf("Default KeyLength expected 32, got %d", p.KeyLength)
+	}
+	if p.Mode != ModeArgon2id {
+		t.Errorf("Default Mode expected argon2id, got %s", p.Mode)
+	}
+}
+
+func TestVerifyUnsupportedMode(t *testing.T) {
+	// Hash with unsupported mode
+	unsupportedHash := "$argon2d$v=19$m=65536,t=1,p=4$dGVzdHNhbHQ$dGVzdGhhc2g"
+	_, err := Verify("password", unsupportedHash)
+	if err != ErrUnsupportedMode {
+		t.Errorf("Expected ErrUnsupportedMode, got %v", err)
+	}
+}
+
+func TestHashWithParamsEmptyMode(t *testing.T) {
+	// Test backward compatibility: empty Mode should default to argon2id
+	password := "test_password"
+	params := &Params{
+		Memory:      32 * 1024,
+		Iterations:  2,
+		Parallelism: 2,
+		SaltLength:  16,
+		KeyLength:   32,
+		Mode:        "", // Empty mode - should default to argon2id
+	}
+
+	hash, err := HashWithParams(password, params)
+	if err != nil {
+		t.Fatalf("HashWithParams with empty Mode failed: %v", err)
+	}
+
+	// Should generate argon2id hash by default
+	if !strings.HasPrefix(hash, "$argon2id$") {
+		t.Errorf("Expected default mode argon2id, got hash: %s", hash)
+	}
+
+	// Verify should work correctly
+	match, err := Verify(password, hash)
+	if err != nil {
+		t.Fatalf("Verify with empty Mode hash failed: %v", err)
+	}
+	if !match {
+		t.Error("Verify returned false for correct password with empty Mode")
 	}
 }
