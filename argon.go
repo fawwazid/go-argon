@@ -45,6 +45,19 @@ type Params struct {
 	Mode string
 }
 
+const (
+	// DefaultMemory is the default memory (in kibibytes) used by the algorithm (64 MB).
+	DefaultMemory = 64 * 1024
+	// DefaultIterations is the default number of passes over the memory.
+	DefaultIterations = 1
+	// DefaultParallelism is the default number of threads (or lanes) used by the algorithm.
+	DefaultParallelism = 4
+	// DefaultSaltLength is the default length of the random salt.
+	DefaultSaltLength = 16
+	// DefaultKeyLength is the default length of the generated key.
+	DefaultKeyLength = 32
+)
+
 // DefaultParams returns the parameters recommended for interactive logins
 // according to NIST and OWASP guidelines (2024/2025).
 //
@@ -62,16 +75,16 @@ type Params struct {
 func DefaultParams() *Params {
 	p := uint8(runtime.NumCPU())
 	// Cap parallelism at 4 for defaults to avoid excessive resource usage on large machines for simple auth
-	if p > 4 {
-		p = 4
+	if p > DefaultParallelism {
+		p = DefaultParallelism
 	}
 
 	return &Params{
-		Memory:      64 * 1024,
-		Iterations:  1,
+		Memory:      DefaultMemory,
+		Iterations:  DefaultIterations,
 		Parallelism: p,
-		SaltLength:  16,
-		KeyLength:   32,
+		SaltLength:  DefaultSaltLength,
+		KeyLength:   DefaultKeyLength,
 		Mode:        ModeArgon2id,
 	}
 }
