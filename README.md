@@ -103,7 +103,7 @@ This library follows **NIST Special Publication 800-63B** guidelines for Passwor
 - **Algorithm**: Supports **Argon2id** (default) and **Argon2i** (see [Section 5.1.1.2](https://pages.nist.gov/800-63-3/sp800-63b.html#memsecret)). Argon2id is memory-hard and resistant to both GPU/ASIC attacks and side-channel attacks.
 - **Salt**: Automatically generates a 16-byte cryptographically secure random salt (meets the 32-bit minimum, recommending 128-bit/16-byte).
 - **Work Factor**: Defaults to 64 MB memory usage, satisfying the requirement for memory-hard functions to make offline attacks expensive.
-- **Mode Selection**: Defaults to Argon2id. NIST recommends Mem-Hardened functions; Argon2id is the primary choice for this.
+- **Mode Selection**: Defaults to Argon2id. NIST recommends memory-hardened functions; Argon2id is the primary choice for this.
 
 > **NIST SP 800-63B Section 5.1.1.2**: "Verifiers SHALL store memorized secrets in a form that is resistant to offline attacks. Secrets SHALL be hashed with a salt value using a memory-hard function... The salt value SHALL be at least 32 bits in length... The key derivation function SHALL perform an iteration count to increase the work factor...".
 
