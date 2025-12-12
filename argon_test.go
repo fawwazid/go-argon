@@ -239,3 +239,35 @@ func TestVerifyUnsupportedMode(t *testing.T) {
 		t.Errorf("Expected ErrUnsupportedMode, got %v", err)
 	}
 }
+
+func TestHashWithParamsEmptyMode(t *testing.T) {
+	// Test backward compatibility: empty Mode should default to argon2id
+	password := "test_password"
+	params := &Params{
+		Memory:      32 * 1024,
+		Iterations:  2,
+		Parallelism: 2,
+		SaltLength:  16,
+		KeyLength:   32,
+		Mode:        "", // Empty mode - should default to argon2id
+	}
+
+	hash, err := HashWithParams(password, params)
+	if err != nil {
+		t.Fatalf("HashWithParams with empty Mode failed: %v", err)
+	}
+
+	// Should generate argon2id hash by default
+	if !strings.HasPrefix(hash, "$argon2id$") {
+		t.Errorf("Expected default mode argon2id, got hash: %s", hash)
+	}
+
+	// Verify should work correctly
+	match, err := Verify(password, hash)
+	if err != nil {
+		t.Fatalf("Verify with empty Mode hash failed: %v", err)
+	}
+	if !match {
+		t.Error("Verify returned false for correct password with empty Mode")
+	}
+}

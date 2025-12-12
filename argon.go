@@ -91,7 +91,13 @@ func HashWithParams(password string, p *Params) (string, error) {
 
 	var hash []byte
 
-	switch p.Mode {
+	// Default to ModeArgon2id if Mode is not set for backward compatibility
+	mode := p.Mode
+	if mode == "" {
+		mode = ModeArgon2id
+	}
+
+	switch mode {
 	case ModeArgon2i:
 		hash = argon2.Key([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
 	case ModeArgon2id:
@@ -105,7 +111,7 @@ func HashWithParams(password string, p *Params) (string, error) {
 	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
 
 	encoded := fmt.Sprintf("$%s$v=%d$m=%d,t=%d,p=%d$%s$%s",
-		p.Mode, argon2.Version, p.Memory, p.Iterations, p.Parallelism, b64Salt, b64Hash)
+		mode, argon2.Version, p.Memory, p.Iterations, p.Parallelism, b64Salt, b64Hash)
 
 	return encoded, nil
 }
@@ -119,7 +125,14 @@ func Verify(password, encodedHash string) (bool, error) {
 	}
 
 	var otherHash []byte
-	switch p.Mode {
+
+	// Default to ModeArgon2id if Mode is not set for backward compatibility
+	mode := p.Mode
+	if mode == "" {
+		mode = ModeArgon2id
+	}
+
+	switch mode {
 	case ModeArgon2i:
 		otherHash = argon2.Key([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
 	case ModeArgon2id:
