@@ -18,3 +18,12 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           release-type: simple
+
+          # Mengaktifkan pre-release
+          prerelease: true
+
+          # Minor release: otomatis naik minor jika ada "feat:"
+          bump-minor-pre-major: true
+
+          # Patch release: otomatis naik patch jika ada "fix:"
+          bump-patch-for-minor-pre-major: true
