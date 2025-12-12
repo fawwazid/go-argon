@@ -1,0 +1,12 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "prerelease": false,
+      "versioning": {
+        "bump-minor": true,
+        "bump-patch": true
+      }
+    }
+  }
+}
