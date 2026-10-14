@@ -3,7 +3,9 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/fawwazid/go-argon.svg)](https://pkg.go.dev/github.com/fawwazid/go-argon)
 [![Go Report Card](https://goreportcard.com/badge/github.com/fawwazid/go-argon)](https://goreportcard.com/report/github.com/fawwazid/go-argon)
 
-Go library for Argon2 password hashing, based on **NIST SP 800-63B** guidelines for password hashing.
+Go library for Argon2 password hashing. Its defaults are designed to support the
+salted, cost-factor-based storage requirements in **NIST SP 800-63B-4** and
+current password-hashing guidance.
 
 This library provides a simple and secure wrapper around `golang.org/x/crypto/argon2`, supporting both **Argon2id** (default, recommended) and **Argon2i** modes with PHC string formatting.
 
@@ -15,7 +17,7 @@ go get github.com/fawwazid/go-argon
 
 ## Usage
 
-### Simple Hashing (Default NIST Params)
+### Simple Hashing (Secure Defaults)
 
 This uses **Argon2id** with:
 - Memory: 64 MB
@@ -75,16 +77,47 @@ params := &argon.Params{
 hash, err := argon.HashWithParams("password", params)
 ```
 
+Custom parameters are validated. To limit denial-of-service risk, hashing and
+verification reject values above the exported `Max*` limits. Benchmark on your
+production hardware and increase the work factor over time when practical.
+Passwords larger than 1 MiB are rejected; applications should normally enforce
+a much smaller, documented input limit of at least 64 characters.
+
+Applications must still rate-limit authentication attempts. Do not accept the
+stored PHC string directly from an unauthenticated client, and do not expose
+parser errors verbatim in login responses.
+
+### Rehashing Existing Passwords
+
+After a successful login, use `NeedsRehash` to migrate older hashes when your
+target parameters change:
+
+```go
+match, err := argon.Verify(password, storedHash)
+if err != nil {
+    return err
+}
+if match {
+    needsRehash, err := argon.NeedsRehash(storedHash, argon.DefaultParams())
+    if err != nil {
+        return err
+    }
+    if needsRehash {
+        storedHash, err = argon.Hash(password)
+    }
+}
+```
+
 ### Choosing Between Argon2id and Argon2i
 
-- **Argon2id** (Default): Recommended by NIST. Hybrid mode that provides resistance to both GPU/ASIC attacks and side-channel attacks. Use this for general password hashing.
+- **Argon2id** (Default): The recommended general-purpose Argon2 variant. It balances resistance to GPU/ASIC attacks and side-channel attacks.
 - **Argon2i**: Optimized for maximum resistance to side-channel attacks. Use this in environments where timing attacks are a primary concern.
 
 ```go
 // Using Argon2i explicitly
 params := &argon.Params{
     Memory:      64 * 1024,
-    Iterations:  1,
+    Iterations:  3,
     Parallelism: 4,
     SaltLength:  16,
     KeyLength:   32,
@@ -94,18 +127,28 @@ params := &argon.Params{
 hash, err := argon.HashWithParams("password", params)
 ```
 
-> **Note**: Argon2d is not supported as it is vulnerable to side-channel attacks and not recommended for password hashing by NIST.
+> **Note**: Argon2d is not supported because its data-dependent memory access is
+> unsuitable for general-purpose password hashing where side-channel attacks are
+> a concern.
 
 ## Standards Compliance
 
-This library follows **NIST Special Publication 800-63B** guidelines for Password Hashing:
+The current publication is
+[NIST SP 800-63B-4](https://pages.nist.gov/800-63-4/sp800-63b/authenticators/#passwordver).
+This library supports several of its password-verifier storage requirements:
 
-- **Algorithm**: Supports **Argon2id** (default) and **Argon2i** (see [Section 5.1.1.2](https://pages.nist.gov/800-63-3/sp800-63b.html#memsecret)). Argon2id is memory-hard and resistant to both GPU/ASIC attacks and side-channel attacks.
-- **Salt**: Automatically generates a 16-byte cryptographically secure random salt (meets the 32-bit minimum, recommending 128-bit/16-byte).
-- **Work Factor**: Defaults to 64 MB memory usage, satisfying the requirement for memory-hard functions to make offline attacks expensive.
-- **Mode Selection**: Defaults to Argon2id. NIST recommends memory-hardened functions; Argon2id is the primary choice for this.
+- each hash gets a random 128-bit salt from Go's `crypto/rand`;
+- the PHC string records the algorithm, version, salt, and cost factor;
+- the default uses a deliberately expensive password-hashing scheme; and
+- `NeedsRehash` supports raising the cost factor over time.
 
-> **NIST SP 800-63B Section 5.1.1.2**: "Verifiers SHALL store memorized secrets in a form that is resistant to offline attacks. Secrets SHALL be hashed with a salt value using a memory-hard function... The salt value SHALL be at least 32 bits in length... The key derivation function SHALL perform an iteration count to increase the work factor...".
+This is **not a claim of NIST certification or complete application-level
+compliance**. SP 800-63B-4 covers the entire verifier, including password length,
+blocklist checks, rate limiting, protected transport, and optionally a separate
+keyed operation. NIST also points to approved schemes in SP 800-132; Argon2 is
+not currently a FIPS-validated password-hashing primitive. Deployments that
+require approved cryptography or FIPS validation must select an appropriate
+validated implementation and assess the complete system.
 
 ## License
 
