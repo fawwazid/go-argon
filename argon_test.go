@@ -1,6 +1,7 @@
 package argon
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -270,4 +271,96 @@ func TestHashWithParamsEmptyMode(t *testing.T) {
 	if !match {
 		t.Error("Verify returned false for correct password with empty Mode")
 	}
+}
+
+func TestHashWithParamsRejectsInvalidParams(t *testing.T) {
+	tests := []struct {
+		name   string
+		params *Params
+		want   error
+	}{
+		{name: "nil", params: nil, want: ErrInvalidParams},
+		{name: "zero iterations", params: &Params{Memory: 64 * 1024, Parallelism: 1, SaltLength: 16, KeyLength: 32}, want: ErrInvalidParams},
+		{name: "short salt", params: &Params{Memory: 64 * 1024, Iterations: 1, Parallelism: 1, SaltLength: 3, KeyLength: 32}, want: ErrInvalidParams},
+		{name: "short key", params: &Params{Memory: 64 * 1024, Iterations: 1, Parallelism: 1, SaltLength: 16, KeyLength: 15}, want: ErrInvalidParams},
+		{name: "memory below lanes minimum", params: &Params{Memory: 7, Iterations: 1, Parallelism: 1, SaltLength: 16, KeyLength: 32}, want: ErrInvalidParams},
+		{name: "excessive memory", params: &Params{Memory: MaxMemory + 1, Iterations: 1, Parallelism: 1, SaltLength: 16, KeyLength: 32}, want: ErrParamsTooLarge},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := HashWithParams("password", tt.params)
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("HashWithParams() error = %v, want %v", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestVerifyRejectsExcessiveCost(t *testing.T) {
+	encoded := "$argon2id$v=19$m=262145,t=1,p=1$dGVzdHNhbHQ$dGVzdGhhc2h0ZXN0aGFzaA"
+	_, err := Verify("password", encoded)
+	if !errors.Is(err, ErrParamsTooLarge) {
+		t.Fatalf("Verify() error = %v, want %v", err, ErrParamsTooLarge)
+	}
+}
+
+func TestVerifyRejectsNonCanonicalParameters(t *testing.T) {
+	tests := []string{
+		"$argon2id$v=19$m=65536,t=1,p=1trailing$dGVzdHNhbHQ$dGVzdGhhc2h0ZXN0aGFzaA",
+		"$argon2id$v=19$m=065536,t=1,p=1$dGVzdHNhbHQ$dGVzdGhhc2h0ZXN0aGFzaA",
+		"$argon2id$v=19$m=65536,t=+1,p=1$dGVzdHNhbHQ$dGVzdGhhc2h0ZXN0aGFzaA",
+		"$argon2id$v=19$m=65536,t=1,p=1$dGVzdHNhbHR$dGVzdGhhc2h0ZXN0aGFzaA",
+	}
+
+	for _, encoded := range tests {
+		_, err := Verify("password", encoded)
+		if !errors.Is(err, ErrInvalidHash) {
+			t.Fatalf("Verify(%q) error = %v, want %v", encoded, err, ErrInvalidHash)
+		}
+	}
+}
+
+func TestRejectsExcessivelyLongPassword(t *testing.T) {
+	password := strings.Repeat("x", MaxPasswordLength+1)
+
+	if _, err := Hash(password); !errors.Is(err, ErrPasswordTooLong) {
+		t.Fatalf("Hash() error = %v, want %v", err, ErrPasswordTooLong)
+	}
+	if _, err := Verify(password, "invalid"); !errors.Is(err, ErrPasswordTooLong) {
+		t.Fatalf("Verify() error = %v, want %v", err, ErrPasswordTooLong)
+	}
+}
+
+func TestNeedsRehash(t *testing.T) {
+	hash, err := Hash("password")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	needsRehash, err := NeedsRehash(hash, DefaultParams())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if needsRehash {
+		t.Fatal("fresh default hash unexpectedly needs rehash")
+	}
+
+	target := DefaultParams()
+	target.Iterations++
+	needsRehash, err = NeedsRehash(hash, target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !needsRehash {
+		t.Fatal("hash with an old work factor should need rehash")
+	}
+}
+
+func FuzzVerify(f *testing.F) {
+	f.Add("password", "$argon2id$v=19$m=65536,t=1,p=1$dGVzdHNhbHQ$dGVzdGhhc2h0ZXN0aGFzaA")
+	f.Add("password", "not-a-phc-string")
+	f.Fuzz(func(t *testing.T, password, encoded string) {
+		_, _ = Verify(password, encoded)
+	})
 }

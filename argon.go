@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"golang.org/x/crypto/argon2"
@@ -19,17 +20,22 @@ var (
 	ErrIncompatibleVersion = errors.New("argon: incompatible version of argon2")
 	// ErrUnsupportedMode is returned when the mode is not supported.
 	ErrUnsupportedMode = errors.New("argon: unsupported argon2 mode")
+	// ErrInvalidParams is returned when hashing parameters are unsafe or invalid.
+	ErrInvalidParams = errors.New("argon: invalid parameters")
+	// ErrParamsTooLarge is returned when parameters request excessive resources.
+	ErrParamsTooLarge = errors.New("argon: parameters exceed safe limits")
+	// ErrPasswordTooLong is returned before hashing an excessively large password.
+	ErrPasswordTooLong = errors.New("argon: password exceeds maximum length")
 )
 
 const (
-	// ModeArgon2id is the default mode, recommended by NIST.
+	// ModeArgon2id is the recommended general-purpose Argon2 mode.
 	ModeArgon2id = "argon2id"
 	// ModeArgon2i is optimized to resist side-channel attacks.
 	ModeArgon2i = "argon2i"
 )
 
-// Params describes the input parameters used by the Argon2id algorithm.
-// The params are set to satisfy NIST recommendations for password hashing.
+// Params describes the input parameters used by the Argon2 algorithm.
 type Params struct {
 	// The amount of memory used by the algorithm (in kibibytes).
 	Memory uint32
@@ -56,10 +62,25 @@ const (
 	DefaultSaltLength = 16
 	// DefaultKeyLength is the default length of the generated key.
 	DefaultKeyLength = 32
+
+	// Parameter limits protect applications from resource exhaustion when a PHC
+	// string or custom configuration is corrupted or comes from an untrusted source.
+	MaxMemory      = 256 * 1024
+	MaxIterations  = 20
+	MaxParallelism = 64
+	MaxSaltLength  = 64
+	MaxKeyLength   = 64
+	MaxEncodedLen  = 1024
+	// MaxPasswordLength limits hashing work for unexpectedly large inputs. It is
+	// intentionally far above the minimum length applications should permit.
+	MaxPasswordLength = 1024 * 1024
 )
 
-// DefaultParams returns the parameters recommended for interactive logins
-// according to NIST and OWASP guidelines (2024/2025).
+var phcBase64 = base64.RawStdEncoding.Strict()
+
+// DefaultParams returns general-purpose parameters for interactive logins.
+// Applications should benchmark and tune
+// the work factor for their own deployment.
 //
 // Current defaults:
 //   - Memory: 64 MB (64 * 1024)
@@ -96,6 +117,13 @@ func Hash(password string) (string, error) {
 
 // HashWithParams returns a matchable PHC string using the provided configuration.
 func HashWithParams(password string, p *Params) (string, error) {
+	if len(password) > MaxPasswordLength {
+		return "", ErrPasswordTooLong
+	}
+	if err := validateParams(p); err != nil {
+		return "", err
+	}
+
 	salt := make([]byte, p.SaltLength)
 	_, err := rand.Read(salt)
 	if err != nil {
@@ -120,8 +148,8 @@ func HashWithParams(password string, p *Params) (string, error) {
 	}
 
 	// Format: $argon2id$v=19$m=65536,t=1,p=4$salt$hash
-	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
-	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
+	b64Salt := phcBase64.EncodeToString(salt)
+	b64Hash := phcBase64.EncodeToString(hash)
 
 	encoded := fmt.Sprintf("$%s$v=%d$m=%d,t=%d,p=%d$%s$%s",
 		mode, argon2.Version, p.Memory, p.Iterations, p.Parallelism, b64Salt, b64Hash)
@@ -132,6 +160,10 @@ func HashWithParams(password string, p *Params) (string, error) {
 // Verify compares a password against a hashed PHC string.
 // It returns true if the password matches, false otherwise.
 func Verify(password, encodedHash string) (bool, error) {
+	if len(password) > MaxPasswordLength {
+		return false, ErrPasswordTooLong
+	}
+
 	p, salt, hash, err := decodeHash(encodedHash)
 	if err != nil {
 		return false, err
@@ -160,14 +192,71 @@ func Verify(password, encodedHash string) (bool, error) {
 	return false, nil
 }
 
+// NeedsRehash reports whether an encoded hash uses different parameters from
+// the supplied target. It validates both inputs but does not verify a password.
+func NeedsRehash(encodedHash string, target *Params) (bool, error) {
+	if err := validateParams(target); err != nil {
+		return false, err
+	}
+
+	p, _, _, err := decodeHash(encodedHash)
+	if err != nil {
+		return false, err
+	}
+
+	targetMode := target.Mode
+	if targetMode == "" {
+		targetMode = ModeArgon2id
+	}
+
+	return p.Memory != target.Memory ||
+		p.Iterations != target.Iterations ||
+		p.Parallelism != target.Parallelism ||
+		p.SaltLength != target.SaltLength ||
+		p.KeyLength != target.KeyLength ||
+		p.Mode != targetMode, nil
+}
+
+func validateParams(p *Params) error {
+	if p == nil {
+		return ErrInvalidParams
+	}
+
+	mode := p.Mode
+	if mode == "" {
+		mode = ModeArgon2id
+	}
+	if mode != ModeArgon2id && mode != ModeArgon2i {
+		return ErrUnsupportedMode
+	}
+	if p.Memory < 8*uint32(p.Parallelism) || p.Iterations < 1 || p.Parallelism < 1 ||
+		p.SaltLength < 4 || p.KeyLength < 16 {
+		return ErrInvalidParams
+	}
+	if p.Memory > MaxMemory || p.Iterations > MaxIterations ||
+		p.Parallelism > MaxParallelism || p.SaltLength > MaxSaltLength ||
+		p.KeyLength > MaxKeyLength {
+		return ErrParamsTooLarge
+	}
+
+	return nil
+}
+
 func decodeHash(encodedHash string) (p *Params, salt, hash []byte, err error) {
-	vals := strings.Split(encodedHash, "$")
-	if len(vals) != 6 {
+	if len(encodedHash) > MaxEncodedLen {
 		return nil, nil, nil, ErrInvalidHash
 	}
 
-	var version int
-	_, err = fmt.Sscanf(vals[2], "v=%d", &version)
+	vals := strings.Split(encodedHash, "$")
+	if len(vals) != 6 || vals[0] != "" {
+		return nil, nil, nil, ErrInvalidHash
+	}
+
+	versionText, ok := strings.CutPrefix(vals[2], "v=")
+	if !ok {
+		return nil, nil, nil, ErrInvalidHash
+	}
+	version, err := strconv.Atoi(versionText)
 	if err != nil {
 		return nil, nil, nil, ErrInvalidHash
 	}
@@ -180,29 +269,67 @@ func decodeHash(encodedHash string) (p *Params, salt, hash []byte, err error) {
 		return nil, nil, nil, ErrUnsupportedMode
 	}
 
-	p = &Params{
-		Mode: mode,
+	parameterParts := strings.Split(vals[3], ",")
+	if len(parameterParts) != 3 {
+		return nil, nil, nil, ErrInvalidHash
 	}
-	_, err = fmt.Sscanf(vals[3], "m=%d,t=%d,p=%d", &p.Memory, &p.Iterations, &p.Parallelism)
+	memory, err := parseUintParameter(parameterParts[0], "m=", 32)
+	if err != nil {
+		return nil, nil, nil, ErrInvalidHash
+	}
+	iterations, err := parseUintParameter(parameterParts[1], "t=", 32)
+	if err != nil {
+		return nil, nil, nil, ErrInvalidHash
+	}
+	parallelism, err := parseUintParameter(parameterParts[2], "p=", 8)
 	if err != nil {
 		return nil, nil, nil, ErrInvalidHash
 	}
 
-	// Validate Argon2 parameters to prevent unsafe or nonsensical values
-	if p.Memory < 1 || p.Iterations < 1 || p.Parallelism < 1 {
-		return nil, nil, nil, ErrInvalidHash
+	p = &Params{
+		Memory:      uint32(memory),
+		Iterations:  uint32(iterations),
+		Parallelism: uint8(parallelism),
+		Mode:        mode,
 	}
-	salt, err = base64.RawStdEncoding.DecodeString(vals[4])
+
+	if len(vals[4]) > phcBase64.EncodedLen(MaxSaltLength) ||
+		len(vals[5]) > phcBase64.EncodedLen(MaxKeyLength) {
+		return nil, nil, nil, ErrParamsTooLarge
+	}
+
+	salt, err = phcBase64.DecodeString(vals[4])
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, ErrInvalidHash
 	}
 	p.SaltLength = uint32(len(salt))
 
-	hash, err = base64.RawStdEncoding.DecodeString(vals[5])
+	hash, err = phcBase64.DecodeString(vals[5])
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, ErrInvalidHash
 	}
 	p.KeyLength = uint32(len(hash))
 
+	if err := validateParams(p); err != nil {
+		if errors.Is(err, ErrInvalidParams) {
+			return nil, nil, nil, ErrInvalidHash
+		}
+		return nil, nil, nil, err
+	}
+
 	return p, salt, hash, nil
+}
+
+func parseUintParameter(value, prefix string, bits int) (uint64, error) {
+	number, ok := strings.CutPrefix(value, prefix)
+	if !ok || number == "" {
+		return 0, ErrInvalidHash
+	}
+
+	parsed, err := strconv.ParseUint(number, 10, bits)
+	if err != nil || strconv.FormatUint(parsed, 10) != number {
+		return 0, ErrInvalidHash
+	}
+
+	return parsed, nil
 }
