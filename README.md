@@ -1,7 +1,6 @@
 # Go - Argon
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/fawwazid/go-argon.svg)](https://pkg.go.dev/github.com/fawwazid/go-argon)
-[![Go Report Card](https://goreportcard.com/badge/github.com/fawwazid/go-argon)](https://goreportcard.com/report/github.com/fawwazid/go-argon)
 
 Go library for Argon2 password hashing. Its defaults are designed to support the
 salted, cost-factor-based storage requirements in **NIST SP 800-63B-4** and
