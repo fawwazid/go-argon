@@ -28,13 +28,6 @@ var (
 	ErrPasswordTooLong = errors.New("argon: password exceeds maximum length")
 )
 
-const (
-	// ModeArgon2id is the recommended general-purpose Argon2 mode.
-	ModeArgon2id = "argon2id"
-	// ModeArgon2i is optimized to resist side-channel attacks.
-	ModeArgon2i = "argon2i"
-)
-
 // Params describes the input parameters used by the Argon2 algorithm.
 type Params struct {
 	// The amount of memory used by the algorithm (in kibibytes).
@@ -47,8 +40,6 @@ type Params struct {
 	SaltLength uint32
 	// The length of the generated key (or password hash). 32 bytes or more is recommended.
 	KeyLength uint32
-	// The mode of Argon2 to use (argon2id or argon2i).
-	Mode string
 }
 
 const (
@@ -78,35 +69,15 @@ const (
 
 var phcBase64 = base64.RawStdEncoding.Strict()
 
-// DefaultParams returns general-purpose parameters for interactive logins.
-// Applications should benchmark and tune
-// the work factor for their own deployment.
-//
-// Current defaults:
-//   - Memory: 64 MB (64 * 1024)
-//   - Iterations: 1
-//   - Parallelism: up to 4 (uses runtime.NumCPU() if less than 4, but always capped at 4)
-//     This cap is intended to avoid excessive resource usage on high-core-count systems
-//     for typical authentication scenarios, and to provide consistent default behavior.
-//     Note: On systems with more than 4 CPUs, this may result in underutilization of available
-//     CPU cores. If higher parallelism is desired, set the Parallelism field manually.
-//   - SaltLength: 16 bytes
-//   - KeyLength: 32 bytes
-//   - Mode: argon2id
+// DefaultParams returns independent Argon2id settings with at most four lanes.
+// Benchmark and tune the work factor for the deployment.
 func DefaultParams() *Params {
-	p := uint8(runtime.NumCPU())
-	// Cap parallelism at 4 for defaults to avoid excessive resource usage on large machines for simple auth
-	if p > DefaultParallelism {
-		p = DefaultParallelism
-	}
-
 	return &Params{
 		Memory:      DefaultMemory,
 		Iterations:  DefaultIterations,
-		Parallelism: p,
+		Parallelism: uint8(min(DefaultParallelism, max(1, runtime.NumCPU()))),
 		SaltLength:  DefaultSaltLength,
 		KeyLength:   DefaultKeyLength,
-		Mode:        ModeArgon2id,
 	}
 }
 
@@ -117,6 +88,9 @@ func Hash(password string) (string, error) {
 
 // HashWithParams returns a matchable PHC string using the provided configuration.
 func HashWithParams(password string, p *Params) (string, error) {
+	if err := checkNonFIPSOperation(); err != nil {
+		return "", err
+	}
 	if len(password) > MaxPasswordLength {
 		return "", ErrPasswordTooLong
 	}
@@ -130,36 +104,20 @@ func HashWithParams(password string, p *Params) (string, error) {
 		return "", err
 	}
 
-	var hash []byte
+	hash := argon2.IDKey([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
 
-	// Default to ModeArgon2id if Mode is not set for backward compatibility
-	mode := p.Mode
-	if mode == "" {
-		mode = ModeArgon2id
-	}
-
-	switch mode {
-	case ModeArgon2i:
-		hash = argon2.Key([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
-	case ModeArgon2id:
-		hash = argon2.IDKey([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
-	default:
-		return "", ErrUnsupportedMode
-	}
-
-	// Format: $argon2id$v=19$m=65536,t=1,p=4$salt$hash
 	b64Salt := phcBase64.EncodeToString(salt)
 	b64Hash := phcBase64.EncodeToString(hash)
 
-	encoded := fmt.Sprintf("$%s$v=%d$m=%d,t=%d,p=%d$%s$%s",
-		mode, argon2.Version, p.Memory, p.Iterations, p.Parallelism, b64Salt, b64Hash)
-
-	return encoded, nil
+	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
+		argon2.Version, p.Memory, p.Iterations, p.Parallelism, b64Salt, b64Hash), nil
 }
 
 // Verify compares a password against a hashed PHC string.
-// It returns true if the password matches, false otherwise.
 func Verify(password, encodedHash string) (bool, error) {
+	if err := checkNonFIPSOperation(); err != nil {
+		return false, err
+	}
 	if len(password) > MaxPasswordLength {
 		return false, ErrPasswordTooLong
 	}
@@ -169,27 +127,9 @@ func Verify(password, encodedHash string) (bool, error) {
 		return false, err
 	}
 
-	var otherHash []byte
+	otherHash := argon2.IDKey([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
 
-	// Default to ModeArgon2id if Mode is not set for backward compatibility
-	mode := p.Mode
-	if mode == "" {
-		mode = ModeArgon2id
-	}
-
-	switch mode {
-	case ModeArgon2i:
-		otherHash = argon2.Key([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
-	case ModeArgon2id:
-		otherHash = argon2.IDKey([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
-	default:
-		return false, ErrUnsupportedMode
-	}
-
-	if subtle.ConstantTimeCompare(hash, otherHash) == 1 {
-		return true, nil
-	}
-	return false, nil
+	return subtle.ConstantTimeCompare(hash, otherHash) == 1, nil
 }
 
 // NeedsRehash reports whether an encoded hash uses different parameters from
@@ -204,17 +144,11 @@ func NeedsRehash(encodedHash string, target *Params) (bool, error) {
 		return false, err
 	}
 
-	targetMode := target.Mode
-	if targetMode == "" {
-		targetMode = ModeArgon2id
-	}
-
 	return p.Memory != target.Memory ||
 		p.Iterations != target.Iterations ||
 		p.Parallelism != target.Parallelism ||
 		p.SaltLength != target.SaltLength ||
-		p.KeyLength != target.KeyLength ||
-		p.Mode != targetMode, nil
+		p.KeyLength != target.KeyLength, nil
 }
 
 func validateParams(p *Params) error {
@@ -222,15 +156,8 @@ func validateParams(p *Params) error {
 		return ErrInvalidParams
 	}
 
-	mode := p.Mode
-	if mode == "" {
-		mode = ModeArgon2id
-	}
-	if mode != ModeArgon2id && mode != ModeArgon2i {
-		return ErrUnsupportedMode
-	}
 	if p.Memory < 8*uint32(p.Parallelism) || p.Iterations < 1 || p.Parallelism < 1 ||
-		p.SaltLength < 4 || p.KeyLength < 16 {
+		p.SaltLength < 16 || p.KeyLength < 32 {
 		return ErrInvalidParams
 	}
 	if p.Memory > MaxMemory || p.Iterations > MaxIterations ||
@@ -257,15 +184,14 @@ func decodeHash(encodedHash string) (p *Params, salt, hash []byte, err error) {
 		return nil, nil, nil, ErrInvalidHash
 	}
 	version, err := strconv.Atoi(versionText)
-	if err != nil {
+	if err != nil || strconv.Itoa(version) != versionText {
 		return nil, nil, nil, ErrInvalidHash
 	}
 	if version != argon2.Version {
 		return nil, nil, nil, ErrIncompatibleVersion
 	}
 
-	mode := vals[1]
-	if mode != ModeArgon2id && mode != ModeArgon2i {
+	if vals[1] != "argon2id" {
 		return nil, nil, nil, ErrUnsupportedMode
 	}
 
@@ -290,7 +216,6 @@ func decodeHash(encodedHash string) (p *Params, salt, hash []byte, err error) {
 		Memory:      uint32(memory),
 		Iterations:  uint32(iterations),
 		Parallelism: uint8(parallelism),
-		Mode:        mode,
 	}
 
 	if len(vals[4]) > phcBase64.EncodedLen(MaxSaltLength) ||
@@ -299,13 +224,13 @@ func decodeHash(encodedHash string) (p *Params, salt, hash []byte, err error) {
 	}
 
 	salt, err = phcBase64.DecodeString(vals[4])
-	if err != nil {
+	if err != nil || phcBase64.EncodeToString(salt) != vals[4] {
 		return nil, nil, nil, ErrInvalidHash
 	}
 	p.SaltLength = uint32(len(salt))
 
 	hash, err = phcBase64.DecodeString(vals[5])
-	if err != nil {
+	if err != nil || phcBase64.EncodeToString(hash) != vals[5] {
 		return nil, nil, nil, ErrInvalidHash
 	}
 	p.KeyLength = uint32(len(hash))
