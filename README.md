@@ -41,6 +41,23 @@ Both creation and verification require at least 16 salt bytes and 32 key bytes.
 Memory must be at least eight KiB per lane. Upper bounds are 256 MiB memory,
 20 passes, 64 lanes, and 64 salt/key bytes. Password input is capped at 1 MiB.
 
+## Semantic versioning
+
+Releases use Semantic Versioning through Release Please. A push to `main`
+opens or updates a release pull request. Merging that generated pull request
+creates the version tag and GitHub release.
+
+Use Conventional Commits in pull request titles (the squash-merge message):
+
+- `fix: ...`, including `fix(security): ...`, creates a patch release.
+- `feat: ...` creates a minor release.
+- `fix!: ...`, `feat!: ...`, or a `BREAKING CHANGE:` footer creates a
+  major release.
+- `docs:`, `test:`, `chore:`, and `ci:` do not trigger a release.
+
+A `security:` commit appears under Security in generated release notes, but
+does not trigger a version bump by itself. Do not edit the generated changelog
+manually.
 ## Breaking changes
 
 Only Argon2id version 19 is supported. Argon2i, `Params.Mode`, mode constants,
