@@ -187,14 +187,20 @@ func TestVerifyExtremeParameters(t *testing.T) {
 
 func TestDefaultParamsValues(t *testing.T) {
 	p := DefaultParams()
-	if p.Memory != 64*1024 {
-		t.Errorf("Default Memory expected 65536, got %d", p.Memory)
+	if p.Memory != 19*1024 {
+		t.Errorf("Default Memory expected %d, got %d", 19*1024, p.Memory)
 	}
-	if p.Iterations != 1 {
-		t.Errorf("Default Iterations expected 1, got %d", p.Iterations)
+	if p.Iterations != 2 {
+		t.Errorf("Default Iterations expected 2, got %d", p.Iterations)
+	}
+	if p.Parallelism != 1 {
+		t.Errorf("Default Parallelism expected 1, got %d", p.Parallelism)
 	}
 	if p.KeyLength != 32 {
 		t.Errorf("Default KeyLength expected 32, got %d", p.KeyLength)
+	}
+	if p.SaltLength != 16 {
+		t.Errorf("Default SaltLength expected 16, got %d", p.SaltLength)
 	}
 }
 
