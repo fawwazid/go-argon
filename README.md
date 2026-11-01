@@ -18,9 +18,7 @@ import (
 )
 
 func main() {
- params := argon.DefaultParams()
- params.Iterations = 2
- encoded, err := argon.HashWithParams("example password", params)
+ encoded, err := argon.Hash("example password")
  if err != nil { log.Fatal(err) }
  matched, err := argon.Verify("example password", encoded)
  if err != nil { log.Fatal(err) }
@@ -35,8 +33,9 @@ func main() {
 - `Verify(password, encoded)`: validate the PHC record and compare the password.
 - `NeedsRehash(encoded, target)`: inspect whether supported parameters differ.
 
-Defaults: 64 MiB memory, one pass, up to four lanes, 16 salt bytes, and 32 key
-bytes. Benchmark work factors for your deployment and bound concurrent hashing.
+Defaults: 19 MiB memory, two passes, one lane, 16 salt bytes, and 32 key bytes.
+This matches OWASP's baseline Argon2id profile. Benchmark work factors for your
+deployment and bound concurrent hashing.
 
 Both creation and verification require at least 16 salt bytes and 32 key bytes.
 Memory must be at least eight KiB per lane. Upper bounds are 256 MiB memory,

@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"runtime"
 	"strconv"
 	"strings"
 
@@ -43,12 +42,12 @@ type Params struct {
 }
 
 const (
-	// DefaultMemory is the default memory (in kibibytes) used by the algorithm (64 MB).
-	DefaultMemory = 64 * 1024
-	// DefaultIterations is the default number of passes over the memory.
-	DefaultIterations = 1
-	// DefaultParallelism is the default number of threads (or lanes) used by the algorithm.
-	DefaultParallelism = 4
+	// DefaultMemory is the OWASP baseline memory setting (19 MiB), in kibibytes.
+	DefaultMemory = 19 * 1024
+	// DefaultIterations is the OWASP baseline number of passes over the memory.
+	DefaultIterations = 2
+	// DefaultParallelism is the OWASP baseline number of lanes.
+	DefaultParallelism = 1
 	// DefaultSaltLength is the default length of the random salt.
 	DefaultSaltLength = 16
 	// DefaultKeyLength is the default length of the generated key.
@@ -69,13 +68,14 @@ const (
 
 var phcBase64 = base64.RawStdEncoding.Strict()
 
-// DefaultParams returns independent Argon2id settings with at most four lanes.
-// Benchmark and tune the work factor for the deployment.
+// DefaultParams returns independent Argon2id settings matching OWASP's
+// 19 MiB, two-pass, single-lane baseline. Benchmark and tune the work factor
+// for the deployment, and bound concurrent hashing.
 func DefaultParams() *Params {
 	return &Params{
 		Memory:      DefaultMemory,
 		Iterations:  DefaultIterations,
-		Parallelism: uint8(min(DefaultParallelism, max(1, runtime.NumCPU()))),
+		Parallelism: DefaultParallelism,
 		SaltLength:  DefaultSaltLength,
 		KeyLength:   DefaultKeyLength,
 	}
