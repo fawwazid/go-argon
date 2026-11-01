@@ -24,3 +24,15 @@ Support only canonical Argon2id records with bounded parameters.
 ```sh
 go get github.com/fawwazid/go-argon/v2@v2.0.0
 ```
+
+## v1.0.2 — 2026-10-14
+
+- Harden Argon2 password hashing and update `golang.org/x/crypto`.
+
+## v1.0.1 — 2025-12-13
+
+- Extract default Argon2 parameters into constants and improve project documentation.
+
+## v1.0.0 — 2025-12-10
+
+- Initial release of the Argon2 password-hashing library.
