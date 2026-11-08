@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.2](https://github.com/fawwazid/go-argon/compare/v2.0.1...v2.0.2) (2026-11-08)
+
+
+### Documentation
+
+* document branch and pull request workflow ([f0e1118](https://github.com/fawwazid/go-argon/commit/f0e111857d5a11b9340995321c11ac55c4277fac))
+
 ## [2.0.1](https://github.com/fawwazid/go-argon/compare/v2.0.0...v2.0.1) (2026-11-01)
 
 
