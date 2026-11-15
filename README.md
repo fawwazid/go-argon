@@ -4,7 +4,7 @@ Install: `go get github.com/fawwazid/go-argon/v2@v2.0.0`.
 See [v2 release notes](CHANGELOG.md) for breaking changes.
 
 Argon2id password hashing with bounded parameters and canonical PHC encoding.
-Requires Go 1.27.3.
+Requires Go 1.27.4.
 
 ## Usage
 
