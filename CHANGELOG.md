@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.3](https://github.com/fawwazid/go-argon/compare/v2.0.2...v2.0.3) (2026-11-15)
+
+
+### Bug Fixes
+
+* **security:** update crypto and Go toolchain ([#24](https://github.com/fawwazid/go-argon/issues/24)) ([#25](https://github.com/fawwazid/go-argon/issues/25)) ([9a01988](https://github.com/fawwazid/go-argon/commit/9a01988bb186ae2c9ca2173a05cd3543ef74eade))
+
 ## [2.0.2](https://github.com/fawwazid/go-argon/compare/v2.0.1...v2.0.2) (2026-11-08)
 
 
